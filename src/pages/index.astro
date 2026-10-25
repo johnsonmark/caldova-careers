@@ -12,6 +12,12 @@ const entries = await getCollection('jobs');
 const jobs: Job[] = sortByNewest(
     entries.map((entry) => ({ slug: entry.id, ...entry.data })),
 );
+const departments = [...new Set(jobs.map((job) => job.department))].sort((a, b) =>
+    a.localeCompare(b),
+);
+const locations = [...new Set(jobs.map((job) => job.location))].sort((a, b) =>
+    a.localeCompare(b),
+);
 ---
 
 <Layout title="Caldova Careers — Open roles">
@@ -29,12 +35,119 @@ const jobs: Job[] = sortByNewest(
     {jobs.length === 0 ? (
       <EmptyState text="There are no open roles right now. Check back soon." />
     ) : (
-      <div
-        class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
-        data-testid="roles-grid"
-      >
-        {jobs.map((job) => <RoleCard job={job} />)}
-      </div>
+      <>
+        <fieldset class="mb-8 rounded-xl border border-slate-700 bg-slate-800/50 p-5">
+          <legend class="px-2 text-lg font-medium text-slate-100">Filter roles</legend>
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label for="department-filter" class="mb-2 block text-sm font-medium text-slate-200">
+                Department
+              </label>
+              <select
+                id="department-filter"
+                data-testid="department-filter"
+                class="w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
+              >
+                <option value="">All departments</option>
+                {departments.map((department) => (
+                  <option value={department}>{department}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label for="location-filter" class="mb-2 block text-sm font-medium text-slate-200">
+                Location
+              </label>
+              <select
+                id="location-filter"
+                data-testid="location-filter"
+                class="w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
+              >
+                <option value="">All locations</option>
+                {locations.map((location) => (
+                  <option value={location}>{location}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <button
+            type="button"
+            data-testid="role-filters-reset"
+            class="mt-4 rounded-lg border border-slate-600 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
+          >
+            Reset filters
+          </button>
+        </fieldset>
+
+        <div
+          class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+          data-testid="roles-grid"
+        >
+          {jobs.map((job) => <RoleCard job={job} />)}
+        </div>
+        <div data-testid="filtered-empty-state" role="status" aria-live="polite" hidden>
+          <EmptyState text="No roles match these filters. Try changing or resetting your filters." />
+        </div>
+      </>
     )}
   </div>
 </Layout>
+
+<script>
+  import { filterJobs } from '../lib/jobs';
+
+  const roleGrid = document.querySelector<HTMLElement>('[data-testid="roles-grid"]');
+  const roleCards = Array.from(
+    document.querySelectorAll<HTMLAnchorElement>('[data-testid="role-card"]'),
+  );
+  const departmentFilter = document.querySelector<HTMLSelectElement>(
+    '[data-testid="department-filter"]',
+  );
+  const locationFilter = document.querySelector<HTMLSelectElement>(
+    '[data-testid="location-filter"]',
+  );
+  const resetButton = document.querySelector<HTMLButtonElement>(
+    '[data-testid="role-filters-reset"]',
+  );
+  const emptyState = document.querySelector<HTMLElement>(
+    '[data-testid="filtered-empty-state"]',
+  );
+
+  if (roleCards.length > 0) {
+    if (!roleGrid || !departmentFilter || !locationFilter || !resetButton || !emptyState) {
+      throw new Error('Role filtering requires its controls, role grid, and empty state.');
+    }
+
+    const jobs = roleCards.map((card) => {
+      const { department, location } = card.dataset;
+      if (department === undefined || location === undefined) {
+        throw new Error('Role cards must include department and location data.');
+      }
+      return { card, department, location };
+    });
+
+    /** Updates the role cards and empty state to reflect the selected filters. */
+    const updateRoles = (): void => {
+      const visibleJobs = filterJobs(jobs, {
+        department: departmentFilter.value,
+        location: locationFilter.value,
+      });
+      const visibleCards = new Set(visibleJobs.map((job) => job.card));
+
+      for (const job of jobs) {
+        job.card.hidden = !visibleCards.has(job.card);
+      }
+
+      roleGrid.hidden = visibleJobs.length === 0;
+      emptyState.hidden = visibleJobs.length > 0;
+    };
+
+    departmentFilter.addEventListener('change', updateRoles);
+    locationFilter.addEventListener('change', updateRoles);
+    resetButton.addEventListener('click', () => {
+      departmentFilter.value = '';
+      locationFilter.value = '';
+      updateRoles();
+    });
+  }
+</script>

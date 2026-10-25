@@ -7,11 +7,42 @@
  */
 import type { Job } from '../types/job';
 
+/** Selected department and location criteria for filtering job postings. */
+export interface JobFilters {
+  department: string;
+  location: string;
+}
+
+type DepartmentJob = Pick<Job, 'department'>;
+type LocationJob = Pick<Job, 'location'>;
+type FilterableJob = Pick<Job, 'department' | 'location'>;
+
 /** Return jobs sorted by posted date, newest first (does not mutate input). */
 export function sortByNewest(jobs: Job[]): Job[] {
-    return [...jobs].sort(
-        (a, b) => new Date(b.postedDate).getTime() - new Date(a.postedDate).getTime(),
-    );
+  return [...jobs].sort(
+    (a, b) => new Date(b.postedDate).getTime() - new Date(a.postedDate).getTime(),
+  );
+}
+
+/** Filter jobs by department; an empty department leaves all jobs unchanged. */
+export function filterByDepartment<T extends DepartmentJob>(
+    jobs: T[],
+    department: string,
+): T[] {
+  return department ? jobs.filter((job) => job.department === department) : [...jobs];
+}
+
+/** Filter jobs by location; an empty location leaves all jobs unchanged. */
+export function filterByLocation<T extends LocationJob>(jobs: T[], location: string): T[] {
+  return location ? jobs.filter((job) => job.location === location) : [...jobs];
+}
+
+/** Apply department and location filters together using AND semantics. */
+export function filterJobs<T extends FilterableJob>(jobs: T[], filters: JobFilters): T[] {
+  return filterByLocation(
+    filterByDepartment(jobs, filters.department),
+    filters.location,
+  );
 }
 
 /**
@@ -19,14 +50,14 @@ export function sortByNewest(jobs: Job[]): Job[] {
  * e.g. "January 5, 2027". Falls back to the raw value if unparseable.
  */
 export function formatPostedDate(iso: string): string {
-    const date = new Date(iso);
-    if (Number.isNaN(date.getTime())) {
-        return iso;
-    }
-    return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        timeZone: 'UTC',
-    });
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return iso;
+  }
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    timeZone: 'UTC',
+  });
 }
